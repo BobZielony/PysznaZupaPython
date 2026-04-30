@@ -18,9 +18,13 @@ csrf = CSRFProtect(app)
 def index():
     headlines = []
     for letter in ascii_lowercase:
-        for number in range(1,2):
+        for number in range(1,20):
             text = "https://sjp.pwn.pl/sjp/lista/{letter};{number}"
-            headlines.append(scrape(text.format(letter = letter,number = number)))
+            response = scrape(text.format(letter = letter,number = number))
+            if not response:
+                break
+            else:
+                headlines.append(response)
     return render_template("index.html",title="Strona główna", headlines = headlines)
 
 @app.route("/haslo", methods=['GET', 'POST'])
