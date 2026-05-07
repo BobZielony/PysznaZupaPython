@@ -8,6 +8,9 @@ from wtforms import StringField, SubmitField
 from wtforms.validators import DataRequired, Length
 import requests
 from bs4 import BeautifulSoup
+import json
+import io
+import os
 app = Flask(__name__)
 app.secret_key = 'tO$&!|0wkamvVia0?n$NqIRVWOG'
 ascii_lowercase = 'abcdefghijklmnopqrstuvwxyz'
@@ -18,13 +21,16 @@ csrf = CSRFProtect(app)
 def index():
     headlines = []
     for letter in ascii_lowercase:
-        for number in range(1,20):
+        for number in range(1,2):
             text = "https://sjp.pwn.pl/sjp/lista/{letter};{number}"
             response = scrape(text.format(letter = letter,number = number))
             if not response:
                 break
             else:
                 headlines.append(response)
+    if not (os.path.isfile("data.json") and os.access("data.json", os.R_OK)):
+        with open('data.json', 'w', encoding='utf-8') as f:
+            json.dump(headlines, f, ensure_ascii=False, indent=4)
     return render_template("index.html",title="Strona główna", headlines = headlines)
 
 @app.route("/haslo", methods=['GET', 'POST'])

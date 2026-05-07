@@ -1,9 +1,14 @@
 <!doctype HTML>
 <html>
-    <div>
+    <head>
+        <link rel= "stylesheet" type= "text/css" href= "{{ url_for('static',filename='style.css') }}">
+    </head>
+    <body>
+        <div>
         Pomoc z Krzyzowkami:
         <a href="/">Strona główna</a>
         <a href="{{url_for('haslo')}}">Wpisz hasło</a>
         {% block content %}{% endblock %}
     </div>
+    </body>
 </html>
