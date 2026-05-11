@@ -1,13 +1,12 @@
 {% extends "base.html" %}
 {% block content %}
     <hr>
-        {% with messages = get_flashed_messages() %}
-        {% if messages %}
-        <ul>
-            {% for message in messages %}
-            <li>{{ message }}</li>
-            {% endfor %}
-        </ul>
-        {% endif %}
-        {% endwith %}
+    <p>Wybrane haslo: {{ chosenPassword }}</p>
+    <p>Hasla ktore moga pasowac</p>
+    <ul>
+        {%for headline in headlinesToDisplay %}
+        <li>{{ headline }}</li>
+        {% endfor %}
+    </ul>
+
 {% endblock %}

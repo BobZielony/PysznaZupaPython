@@ -1,19 +1,17 @@
-from dominate.svg import title
-from flask import Flask, render_template, redirect, url_for, session
-import sys
+import asyncio
+import json
+import os
 
-from flask_wtf import FlaskForm, CSRFProtect
-from flask import flash
-from werkzeug.debug.tbtools import HEADER
-from wtforms import StringField, SubmitField
-from wtforms.validators import DataRequired, Length
+import aiohttp
 import requests
 from bs4 import BeautifulSoup
-import json
-import io
-import os
-import asyncio
-import aiohttp
+from flask import Flask, render_template, redirect
+from flask import flash
+from flask_wtf import FlaskForm, CSRFProtect
+from wtforms import StringField, SubmitField
+from wtforms.validators import DataRequired
+import re
+
 app = Flask(__name__)
 app.secret_key = 'tO$&!|0wkamvVia0?n$NqIRVWOG'
 ascii_lowercase = 'aąbcćdeęfghijklłmnńoópqrsśtuvwxyzźż'
@@ -22,23 +20,34 @@ csrf = CSRFProtect(app)
 
 @app.route("/")
 async def index():
-    headlines = await fetch_all()
     if not (os.path.isfile("data.json") and os.access("data.json", os.R_OK)):
         with open('data.json', 'w', encoding='utf-8') as f:
+            headlines = await fetch_all()
             json.dump(headlines, f, ensure_ascii=False, indent=4)
+    else:
+        with open('data.json', 'r', encoding='utf-8') as f:
+            headlines = json.load(f)
     return render_template("index.html",title="Strona główna", headlines = headlines)
 
 @app.route("/haslo", methods=['GET', 'POST'])
 def haslo():
     form = PasswordForm()
     if form.validate_on_submit():
-        flash('Wybrane hasło: {}'.format(form.crosswordPassword.data))
+        with open("wpisaneHaslo.txt", "w") as f:
+            f.write(form.crosswordPassword.data)
         return redirect("/wpisaneHaslo")
     return render_template('haslo.html', title='Haslo',form=form)
 
 @app.route("/wpisaneHaslo", methods=['GET', 'POST'])
 def wpisaneHaslo():
-    return render_template('wpisaneHaslo.html',title='Wpisane Haslo')
+    with open("wpisaneHaslo.txt") as f:
+        chosenPassword = f.read().lower()
+    with open('data.json', 'r', encoding='utf-8') as f:
+        headlines = json.load(f)
+    regex = re.compile(chosenPassword)
+    headlinesToDisplay = [string for string in headlines if re.match(regex,string)]
+    return render_template('wpisaneHaslo.html',title='Wpisane Haslo',headlinesToDisplay = headlinesToDisplay,
+                           chosenPassword = chosenPassword)
 
 class PasswordForm(FlaskForm):
     crosswordPassword = StringField('Hasło: ', validators=[DataRequired()])
@@ -58,18 +67,18 @@ def scrape(url):
         headlines.remove("Czytaj Więcej")
     return headlines
 
-
-semaphore = asyncio.Semaphore(10)
 HEADERS = {
     "User-Agent":(
-        "Mozilla/5.0"
-        "(Windows NT 10.0; Win64; x64)"
-        "AppleWebKit/537.36"
-        "Chrome/122.0 Safari/537.36"
+        "Mozilla/5.0 "
+        "(Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 "
+        "Chrome/122.0 Safari/537.36 "
     )
 }
-async def scrape2(session,url):
 
+semaphore = asyncio.Semaphore(2)
+
+async def scrape2(session,url):
     async with semaphore:
         await asyncio.sleep(1)
         try:
@@ -87,9 +96,14 @@ async def scrape2(session,url):
                 if not headlines:
                     return None
                 return headlines
-        except asyncio.TimeoutError:
+        except asyncio.TimeoutError as e:
+            app.logger.info(e)
             return None
-        except aiohttp.ClientError:
+        except aiohttp.ClientError as e:
+            app.logger.info(e)
+            return None
+        except Exception as e:
+            app.logger.info(e)
             return None
 
 
@@ -97,7 +111,7 @@ async def fetch_all():
     tasks = []
     async with aiohttp.ClientSession() as session:
         for letter in ascii_lowercase:
-            for number in range(1, 50):
+            for number in range(1, 3):
                 url = f"https://sjp.pwn.pl/sjp/lista/{letter};{number}"
                 tasks.append(scrape2(session,url))
         results = await asyncio.gather(*tasks)
