@@ -43,7 +43,11 @@ def wpisaneHaslo():
     with open("wpisaneHaslo.txt") as f:
         chosenPassword = f.read().lower()
     with open('data.json', 'r', encoding='utf-8') as f:
-        headlines = json.load(f)
+        fromJson = json.load(f)
+    headlines = []
+    for jsonik in fromJson:
+        for headline in jsonik:
+            headlines.append(headline)
     regex = re.compile(chosenPassword)
     headlinesToDisplay = [string for string in headlines if re.match(regex,string)]
     return render_template('wpisaneHaslo.html',title='Wpisane Haslo',headlinesToDisplay = headlinesToDisplay,
@@ -118,10 +122,5 @@ async def fetch_all():
         results = [r for r in results if r]
         return results
 
-wordList = {
-    "tung" : "Indonezyjski z pałką",
-    "polska" : "Państwo unitarne w Europie Środkowej, położone między Morzem Bałtyckim na północy a Sudetami i Karpatami na południu",
-    "błażej" : "Imię męskie pochodzenia łacińskiego. Wywodzi się od słowa „blaesus” - oznaczającego „seplenić”."
- }
 
 
