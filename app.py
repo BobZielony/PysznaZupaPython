@@ -50,6 +50,11 @@ def wpisaneHaslo():
             headlines.append(headline)
     regex = re.compile(chosenPassword)
     headlinesToDisplay = [string for string in headlines if re.match(regex,string)]
+    headlinesToDelete = []
+    for headline in headlinesToDisplay:
+        if len(chosenPassword) != len(headline):
+            headlinesToDelete.append(headline)
+    headlinesToDisplay = [x for x in headlinesToDisplay if x not in headlinesToDelete]
     return render_template('wpisaneHaslo.html',title='Wpisane Haslo',headlinesToDisplay = headlinesToDisplay,
                            chosenPassword = chosenPassword)
 
@@ -92,11 +97,14 @@ async def scrape2(session,url):
                 html = await response.text()
                 soup = BeautifulSoup(html, "html.parser")
                 headlines = []
-                for headline in soup.find_all("span", class_="text-almost-black underline-offset-8"):
+                for headline in soup.find_all("a"):
                     app.logger.info(headline)
                     headlines.append(headline.text.replace('\xa0', ' '))
-                blacklist = ["Młodzieżowe Słowo Roku","Księgarnia PWN","Czytaj Więcej"]
-                headlines = [h for h in headlines if h not in blacklist]
+                blacklist = ["Młodzieżowe Słowo Roku","Księgarnia PWN","Czytaj Więcej","SJP","*"
+                             ,"słownik języka polskiego sjp","a","b","c","ć","d","e","f","g",
+                             "h","i","j","k","l","ł","m","n","o","ó","p","r","s","ś","t","u","w","y","z","ź","ż"
+                             ,"najn.","ndpl","nnot","nie osps","nie wsjp","nie sg.","info","lista","komentarze","więcej","\""]
+                headlines = [h for h in headlines    if h not in blacklist]
                 if not headlines:
                     return None
                 return headlines
@@ -115,9 +123,8 @@ async def fetch_all():
     tasks = []
     async with aiohttp.ClientSession() as session:
         for letter in ascii_lowercase:
-            for number in range(1, 3):
-                url = f"https://sjp.pwn.pl/sjp/lista/{letter};{number}"
-                tasks.append(scrape2(session,url))
+            url = f"https://sjp.pl/sl/growe/?p={letter}"
+            tasks.append(scrape2(session,url))
         results = await asyncio.gather(*tasks)
         results = [r for r in results if r]
         return results
