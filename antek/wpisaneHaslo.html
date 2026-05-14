@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <hr>
+
+    <p>Wybrane haslo: {{ chosenPassword }}</p>
+
+    <p>Hasla ktore moga pasowac</p>
+
+    <ul>
+        {% for headline in headlinesToDisplay %}
+            <li>
+                <b>{{ headline.word }}</b><br>
+                {{ headline.definition }}
+            </li>
+            <br>
+        {% endfor %}
+    </ul>
+
+{% endblock %}
