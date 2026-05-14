@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+from typing import OrderedDict
 
 import aiohttp
 import requests
@@ -55,6 +56,7 @@ def wpisaneHaslo():
         if len(chosenPassword) != len(headline):
             headlinesToDelete.append(headline)
     headlinesToDisplay = [x for x in headlinesToDisplay if x not in headlinesToDelete]
+    headlinesToDisplay = list(OrderedDict.fromkeys(headlinesToDisplay))
     return render_template('wpisaneHaslo.html',title='Wpisane Haslo',headlinesToDisplay = headlinesToDisplay,
                            chosenPassword = chosenPassword)
 
