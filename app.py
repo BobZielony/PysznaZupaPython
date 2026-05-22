@@ -2,9 +2,12 @@ import asyncio
 import json
 import os
 from typing import OrderedDict
+from unittest import result
+from wsgiref import headers
 
 import aiohttp
 import requests
+from asgiref import timeout
 from bs4 import BeautifulSoup
 from flask import Flask, render_template, redirect
 from flask import flash
@@ -15,7 +18,7 @@ import re
 
 app = Flask(__name__)
 app.secret_key = 'tO$&!|0wkamvVia0?n$NqIRVWOG'
-ascii_lowercase = 'aąbcćdeęfghijklłmnńoópqrsśtuvwxyzźż'
+ascii_lowercase = 'a'#ąbcćdeęfghijklłmnńoópqrsśtuvwxyzźż'
 
 csrf = CSRFProtect(app)
 
@@ -23,7 +26,15 @@ csrf = CSRFProtect(app)
 async def index():
     if not (os.path.isfile("data.json") and os.access("data.json", os.R_OK)):
         with open('data.json', 'w', encoding='utf-8') as f:
-            headlines = await fetch_all()
+            words = await fetch_words()
+            definitions = await fetch_definitions(words)
+            headlines = {
+                word: definition
+                for word, definition in zip(words, definitions)
+                if definition
+                   and not definition.startswith("→")
+                   and definition != "KOMENTARZE"
+            }
             json.dump(headlines, f, ensure_ascii=False, indent=4)
     else:
         with open('data.json', 'r', encoding='utf-8') as f:
@@ -44,39 +55,25 @@ def wpisaneHaslo():
     with open("wpisaneHaslo.txt") as f:
         chosenPassword = f.read().lower()
     with open('data.json', 'r', encoding='utf-8') as f:
-        fromJson = json.load(f)
-    headlines = []
-    for jsonik in fromJson:
-        for headline in jsonik:
-            headlines.append(headline)
+        headlines =  json.load(f)
     regex = re.compile(chosenPassword)
-    headlinesToDisplay = [string for string in headlines if re.match(regex,string)]
+    headlinesToDisplayList = [string for string in headlines if re.match(regex,string)]
     headlinesToDelete = []
-    for headline in headlinesToDisplay:
+    for headline in headlinesToDisplayList:
         if len(chosenPassword) != len(headline):
             headlinesToDelete.append(headline)
-    headlinesToDisplay = [x for x in headlinesToDisplay if x not in headlinesToDelete]
-    headlinesToDisplay = list(OrderedDict.fromkeys(headlinesToDisplay))
-    return render_template('wpisaneHaslo.html',title='Wpisane Haslo',headlinesToDisplay = headlinesToDisplay,
+    headlinesToDisplayList = [x for x in headlinesToDisplayList if x not in headlinesToDelete]
+    headlinesToDisplayList = list(OrderedDict.fromkeys(headlinesToDisplayList))
+    headlinesToDisplayDict = {}
+    for headline in headlinesToDisplayList:
+        headlinesToDisplayDict.update({headline:headlines[headline]})
+    return render_template('wpisaneHaslo.html',title='Wpisane Haslo',headlinesToDisplay = headlinesToDisplayDict,
                            chosenPassword = chosenPassword)
 
 class PasswordForm(FlaskForm):
     crosswordPassword = StringField('Hasło: ', validators=[DataRequired()])
     submit = SubmitField('Wyślij')
 
-def scrape(url):
-    response = requests.get(url)
-    soup = BeautifulSoup(response.content, "html.parser")
-    headlines = []
-    for headline in soup.find_all("span", class_="text-almost-black underline-offset-8"):
-        headlines.append(headline.text.replace('\xa0',' '))
-    if "Młodzieżowe Słowo Roku" in headlines:
-        headlines.remove("Młodzieżowe Słowo Roku")
-    if "Księgarnia PWN" in headlines:
-        headlines.remove("Księgarnia PWN")
-    if "Czytaj Więcej" in headlines:
-        headlines.remove("Czytaj Więcej")
-    return headlines
 
 HEADERS = {
     "User-Agent":(
@@ -87,11 +84,11 @@ HEADERS = {
     )
 }
 
-semaphore = asyncio.Semaphore(2)
+semaphore = asyncio.Semaphore(15)
+semaphore2 = asyncio.Semaphore(15)
 
-async def scrape2(session,url):
+async def scrape(session,url):
     async with semaphore:
-        await asyncio.sleep(1)
         try:
             async with session.get(url,headers=HEADERS,timeout=15) as response:
                 if response.status != 200:
@@ -106,7 +103,7 @@ async def scrape2(session,url):
                              ,"słownik języka polskiego sjp","a","b","c","ć","d","e","f","g",
                              "h","i","j","k","l","ł","m","n","o","ó","p","r","s","ś","t","u","w","y","z","ź","ż"
                              ,"najn.","ndpl","nnot","nie osps","nie wsjp","nie sg.","info","lista","komentarze","więcej","\""]
-                headlines = [h for h in headlines    if h not in blacklist]
+                headlines = [h for h in headlines if h not in blacklist]
                 if not headlines:
                     return None
                 return headlines
@@ -121,15 +118,52 @@ async def scrape2(session,url):
             return None
 
 
-async def fetch_all():
+async def fetch_words():
     tasks = []
     async with aiohttp.ClientSession() as session:
         for letter in ascii_lowercase:
-            url = f"https://sjp.pl/sl/growe/?p={letter}"
-            tasks.append(scrape2(session,url))
+            url = f"https://sjp.pl/sl/growe/?p={letter}&l=7"
+            tasks.append(scrape(session,url))
         results = await asyncio.gather(*tasks)
-        results = [r for r in results if r]
+        results = [ #zamienić kilka list w jedna duza
+            x
+            for xs in results
+            for x in xs
+        ]
+        results = list(dict.fromkeys(results))
         return results
+
+async def fetch_definitions(words):
+    tasks = []
+    async with aiohttp.ClientSession() as session:
+        for word in words:
+            tasks.append(scrape_definition(session,word))
+        results = await asyncio.gather(*tasks)
+    return results
+
+async def scrape_definition(session,word):
+    url = f"https://sjp.pl/{word}"
+    async with semaphore2:
+        try:
+            async with session.get(
+                url,
+                headers = HEADERS,
+                timeout = 10
+            ) as response:
+                if response.status != 200:
+                    return None
+                html = await response.text()
+                soup = BeautifulSoup(html,"html.parser")
+                meaning = soup.find("b", string=lambda s: s and "znaczenie" in s.lower())
+                if not meaning:
+                    return "brak definicji"
+                definitionP = meaning.find_parent("p").find_next("p")
+                if not definitionP:
+                    return "brak definicji"
+                app.logger.info(definitionP.getText(strip=True))
+                return definitionP.getText(strip=True)
+        except Exception as e:
+            app.logger.info(e)
 
 
 

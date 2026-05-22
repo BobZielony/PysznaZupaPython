@@ -4,7 +4,13 @@
 <h1>Zobaczymy co zwrócił słownik</h1>
  <ul>
  {% for headline in headlines %}
- <li>{{ headline }}</li>
+ <li>{{ headline }}
+     <ul>
+         <li>
+             {{ headlines[headline] }}
+         </li>
+     </ul>
+ </li>
  {% endfor %}
  </ul>
 {% endblock %}

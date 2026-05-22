@@ -5,7 +5,11 @@
     <p>Hasla ktore moga pasowac</p>
     <ul>
         {%for headline in headlinesToDisplay %}
-        <li>{{ headline }}</li>
+        <li>{{ headline }}
+            <ul>
+                <li>{{ headlinesToDisplay[headline] }}</li>
+            </ul>
+        </li>
         {% endfor %}
     </ul>
 
