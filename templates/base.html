@@ -2,13 +2,15 @@
 <html>
     <head>
         <link rel= "stylesheet" type= "text/css" href= "{{ url_for('static',filename='style.css') }}">
+        <title>{% block title %}{% endblock %}</title>
     </head>
     <body>
-        <div>
-        Pomoc z Krzyzowkami:
-        <a href="/">Strona główna</a>
-        <a href="{{url_for('haslo')}}">Wpisz hasło</a>
+        <nav>
+            <h1>Pomoc z Krzyzowkami:</h1>
+            <a href="/">Strona główna</a>
+            <a href="{{url_for('haslo')}}">Wpisz hasło</a>
+            <a href="{{url_for('definicja')}}">Wpisz definicje</a>
+        </nav>
         {% block content %}{% endblock %}
-    </div>
     </body>
 </html>

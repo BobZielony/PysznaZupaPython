@@ -1,24 +1,24 @@
 import asyncio
 import json
 import os
-from typing import OrderedDict
-from unittest import result
-from wsgiref import headers
-
+import re
 import aiohttp
-import requests
-from asgiref import timeout
+import faiss
+import pickle
+import numpy as np
+from sentence_transformers import SentenceTransformer
 from bs4 import BeautifulSoup
 from flask import Flask, render_template, redirect
-from flask import flash
 from flask_wtf import FlaskForm, CSRFProtect
 from wtforms import StringField, SubmitField
 from wtforms.validators import DataRequired
-import re
-
+from typing import OrderedDict
 app = Flask(__name__)
 app.secret_key = 'tO$&!|0wkamvVia0?n$NqIRVWOG'
-ascii_lowercase = 'a'#ąbcćdeęfghijklłmnńoópqrsśtuvwxyzźż'
+ascii_lowercase = 'aąbcćdeęfghijklłmnńoópqrsśtuvwxyzźż'
+model = SentenceTransformer(
+    "paraphrase-multilingual-MiniLM-L12-v2"
+)
 
 csrf = CSRFProtect(app)
 
@@ -34,12 +34,17 @@ async def index():
                 if definition
                    and not definition.startswith("→")
                    and definition != "KOMENTARZE"
+                   and definition != "brak definicji"
+                   and definition != "POWIĄZANE HASŁA"
+                   and definition != "-"
             }
             json.dump(headlines, f, ensure_ascii=False, indent=4)
     else:
         with open('data.json', 'r', encoding='utf-8') as f:
             headlines = json.load(f)
-    return render_template("index.html",title="Strona główna", headlines = headlines)
+    if not (os.path.isfile("crossword.index") and os.access("crossword.index", os.R_OK)):
+        await buildDatabase()
+    return render_template("index.html", headlines = headlines)
 
 @app.route("/haslo", methods=['GET', 'POST'])
 def haslo():
@@ -48,7 +53,16 @@ def haslo():
         with open("wpisaneHaslo.txt", "w") as f:
             f.write(form.crosswordPassword.data)
         return redirect("/wpisaneHaslo")
-    return render_template('haslo.html', title='Haslo',form=form)
+    return render_template('haslo.html',form=form)
+
+@app.route("/definicja", methods=['GET', 'POST'])
+def definicja():
+    form = DefinitionForm()
+    if form.validate_on_submit():
+        with open("wpisanaDefinicja.txt", "w") as f:
+            f.write(form.crosswordPassword.data)
+        return redirect("/wpisanaDefinicja")
+    return render_template('definicja.html',form=form)
 
 @app.route("/wpisaneHaslo", methods=['GET', 'POST'])
 def wpisaneHaslo():
@@ -67,13 +81,48 @@ def wpisaneHaslo():
     headlinesToDisplayDict = {}
     for headline in headlinesToDisplayList:
         headlinesToDisplayDict.update({headline:headlines[headline]})
-    return render_template('wpisaneHaslo.html',title='Wpisane Haslo',headlinesToDisplay = headlinesToDisplayDict,
+    return render_template('wpisaneHaslo.html',headlinesToDisplay = headlinesToDisplayDict,
                            chosenPassword = chosenPassword)
+
+@app.route("/wpisanaDefinicja", methods=["GET","POST"])
+def wpisanaDefinicja():
+    with open("wpisanaDefinicja.txt") as f:
+        chosenDefinition = f.read().lower()
+    index = faiss.read_index(
+        "crossword.index"
+    )
+
+    with open("crossword_data.pkl", "rb") as f:
+        data = pickle.load(f)
+
+    query_vector = model.encode(
+        [chosenDefinition]
+    ).astype("float32")
+
+    distances, indices = index.search(
+        query_vector,
+        5
+    )
+
+    results = []
+    for i, idx in enumerate(indices[0]):
+        results.append({
+            "word": data["words"][idx],
+            "definition": data["definitions"][idx],
+            "distance": float(distances[0][i])
+        })
+    return render_template('wpisanaDefinicja.html', results=results,
+                           chosenDefinition=chosenDefinition)
+
+
 
 class PasswordForm(FlaskForm):
     crosswordPassword = StringField('Hasło: ', validators=[DataRequired()])
     submit = SubmitField('Wyślij')
 
+class DefinitionForm(FlaskForm):
+    crosswordPassword = StringField('Definicja: ', validators=[DataRequired()])
+    submit = SubmitField('Wyślij')
 
 HEADERS = {
     "User-Agent":(
@@ -84,7 +133,7 @@ HEADERS = {
     )
 }
 
-semaphore = asyncio.Semaphore(15)
+semaphore = asyncio.Semaphore(5)
 semaphore2 = asyncio.Semaphore(15)
 
 async def scrape(session,url):
@@ -165,5 +214,26 @@ async def scrape_definition(session,word):
         except Exception as e:
             app.logger.info(e)
 
+async def buildDatabase():
+    with open('data.json', 'r', encoding='utf-8') as f:
+        jsonik = json.load(f)
+    words = list(jsonik.keys())
+    definitions = list(jsonik.values())
 
+    embeddings = model.encode(definitions, show_progress_bar=True)
+    embeddings = np.array(embeddings).astype("float32")
 
+    dimension = embeddings.shape[1]
+
+    index = faiss.IndexFlatL2(dimension)
+    index.add(embeddings)
+    faiss.write_index(index, "crossword.index")
+
+    with open("crossword_data.pkl", "wb") as f:
+        pickle.dump(
+            {
+                "words": words,
+                "definitions": definitions
+            },
+            f
+        )
