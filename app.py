@@ -16,6 +16,42 @@ from typing import OrderedDict
 app = Flask(__name__)
 app.secret_key = 'tO$&!|0wkamvVia0?n$NqIRVWOG'
 ascii_lowercase = 'aąbcćdeęfghijklłmnńoópqrsśtuvwxyzźż'
+ascii_lowercaseDict = {
+    'a' : 82,
+    'ą' : 1,
+    'b' : 85,
+    'c' : 82,
+    'ć' : 2,
+    'd' : 101,
+    'e' : 42,
+    'ę' : 1,
+    'f' : 50,
+    'g' : 63,
+    'h' : 38,
+    'i' : 34,
+    'j' : 28,
+    'k' : 161,
+    'l' : 45,
+    'ł' : 12,
+    'm' : 100,
+    'n' : 115,
+    'ń' : 1,
+    'o' : 122,
+    'ó' : 1,
+    'p' : 333,
+    'r' : 103,
+    's' : 185,
+    'ś' : 16,
+    't' : 76,
+    'u' : 51,
+    'w' : 145,
+    'x' : 1,
+    'y' : 1,
+    'z' : 130,
+    'ź' : 1,
+    'ż' : 10
+}
+
 model = SentenceTransformer(
     "paraphrase-multilingual-MiniLM-L12-v2"
 )
@@ -33,6 +69,7 @@ async def index():
                 for word, definition in zip(words, definitions)
                 if definition
                    and not definition.startswith("→")
+                   and not definition.startswith("- zob.")
                    and definition != "KOMENTARZE"
                    and definition != "brak definicji"
                    and definition != "POWIĄZANE HASŁA"
@@ -133,8 +170,8 @@ HEADERS = {
     )
 }
 
-semaphore = asyncio.Semaphore(5)
-semaphore2 = asyncio.Semaphore(15)
+semaphore = asyncio.Semaphore(2)
+semaphore2 = asyncio.Semaphore(3)
 
 async def scrape(session,url):
     async with semaphore:
@@ -145,7 +182,7 @@ async def scrape(session,url):
                 html = await response.text()
                 soup = BeautifulSoup(html, "html.parser")
                 headlines = []
-                for headline in soup.find_all("a"):
+                for headline in soup.find_all("span",{"class": "text-almost-black underline-offset-8"}):
                     app.logger.info(headline)
                     headlines.append(headline.text.replace('\xa0', ' '))
                 blacklist = ["Młodzieżowe Słowo Roku","Księgarnia PWN","Czytaj Więcej","SJP","*"
@@ -169,17 +206,25 @@ async def scrape(session,url):
 
 async def fetch_words():
     tasks = []
-    async with aiohttp.ClientSession() as session:
-        for letter in ascii_lowercase:
-            url = f"https://sjp.pl/sl/growe/?p={letter}&l=7"
-            tasks.append(scrape(session,url))
+    async with (aiohttp.ClientSession() as session):
+        for letter in ascii_lowercaseDict:
+            for number in range(1,ascii_lowercaseDict[letter]+1):
+                url = f"https://sjp.pwn.pl/sjp/lista/{letter};{number}"
+                tasks.append(scrape(session,url))
+
         results = await asyncio.gather(*tasks)
-        results = [ #zamienić kilka list w jedna duza
+        results = [
+            x
+            for x in results
+            if x is not None
+        ]
+        results = [  # zamienić kilka list w jedna duza
             x
             for xs in results
             for x in xs
         ]
-        results = list(dict.fromkeys(results))
+        results.sort()
+        #results = list(dict.fromkeys(results))
         return results
 
 async def fetch_definitions(words):
@@ -191,8 +236,8 @@ async def fetch_definitions(words):
     return results
 
 async def scrape_definition(session,word):
-    url = f"https://sjp.pl/{word}"
-    async with semaphore2:
+    url = f"https://sjp.pwn.pl/slowniki/{word}"
+    async with (semaphore2):
         try:
             async with session.get(
                 url,
@@ -203,14 +248,19 @@ async def scrape_definition(session,word):
                     return None
                 html = await response.text()
                 soup = BeautifulSoup(html,"html.parser")
-                meaning = soup.find("b", string=lambda s: s and "znaczenie" in s.lower())
-                if not meaning:
+                title = soup.find("span", {"class":"tytul"})
+                if not title:
                     return "brak definicji"
-                definitionP = meaning.find_parent("p").find_next("p")
+                definitionP = title.find_parent("div").find_parent("div").find_next("ol").find_next("li")
+                for i in definitionP.findAll("i"):
+                    i.replaceWith("  - %s " % i.string)
                 if not definitionP:
                     return "brak definicji"
-                app.logger.info(definitionP.getText(strip=True))
-                return definitionP.getText(strip=True)
+                definitionPText = definitionP.getText(strip=True
+                                           ).replace("«","").replace("»"," ")
+                definitionPTextHead,sep,tail = definitionPText.partition("•")
+                app.logger.info(definitionPTextHead)
+                return definitionPTextHead
         except Exception as e:
             app.logger.info(e)
 
