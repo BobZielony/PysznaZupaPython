@@ -10,12 +10,14 @@ from sentence_transformers import SentenceTransformer
 from bs4 import BeautifulSoup
 from flask import Flask, render_template, redirect
 from flask_wtf import FlaskForm, CSRFProtect
+from urllib3.util import url
 from wtforms import StringField, SubmitField
 from wtforms.validators import DataRequired
 from typing import OrderedDict
 app = Flask(__name__)
 app.secret_key = 'tO$&!|0wkamvVia0?n$NqIRVWOG'
 ascii_lowercase = 'aąbcćdeęfghijklłmnńoópqrsśtuvwxyzźż'
+'''
 ascii_lowercaseDict = {
     'a' : 82,
     'ą' : 1,
@@ -50,6 +52,39 @@ ascii_lowercaseDict = {
     'z' : 130,
     'ź' : 1,
     'ż' : 10
+}
+
+'''
+ascii_lowercaseDict = {
+    'a' : 8820,
+    'b' : 10220,
+    'c' : 7980,
+    'ć' : 1,
+    'd' : 9660,
+    'e' : 3920,
+    'f' : 4480,
+    'g' : 6720,
+    'h' : 4060,
+    'i' : 2940,
+    'j' : 3220,
+    'k' : 16100,
+    'l' : 4900,
+    'ł' : 1540,
+    'm' : 11620,
+    'n' : 9380,
+    'o' : 8960,
+    'ó' : 1,
+    'p' : 28000,
+    'r' : 8960,
+    's' : 18900,
+    'ś' : 1540,
+    't' : 7840,
+    'u' : 3640,
+    'w' : 12880,
+    'y' : 1,
+    'z' : 9240,
+    'ź' : 1,
+    'ż' : 1400
 }
 
 model = SentenceTransformer(
@@ -171,7 +206,7 @@ HEADERS = {
 }
 
 semaphore = asyncio.Semaphore(2)
-semaphore2 = asyncio.Semaphore(3)
+semaphore2 = asyncio.Semaphore(5)
 
 async def scrape(session,url):
     async with semaphore:
@@ -182,9 +217,12 @@ async def scrape(session,url):
                 html = await response.text()
                 soup = BeautifulSoup(html, "html.parser")
                 headlines = []
-                for headline in soup.find_all("span",{"class": "text-almost-black underline-offset-8"}):
-                    app.logger.info(headline)
-                    headlines.append(headline.text.replace('\xa0', ' '))
+                for div in soup.find_all("div",{"class": "col-ms-6"}):
+                    ul = div.find("ul")
+                    for a in ul.findAll("li"):
+                        headline = a.extract()
+                        app.logger.info(headline)
+                        headlines.append(headline.text.replace('\xa0', ' '))
                 blacklist = ["Młodzieżowe Słowo Roku","Księgarnia PWN","Czytaj Więcej","SJP","*"
                              ,"słownik języka polskiego sjp","a","b","c","ć","d","e","f","g",
                              "h","i","j","k","l","ł","m","n","o","ó","p","r","s","ś","t","u","w","y","z","ź","ż"
@@ -208,10 +246,14 @@ async def fetch_words():
     tasks = []
     async with (aiohttp.ClientSession() as session):
         for letter in ascii_lowercaseDict:
-            for number in range(1,ascii_lowercaseDict[letter]+1):
+            counter = 0
+            while counter <= ascii_lowercaseDict[letter]:
+                url = f"https://wordlist.eu/slowa/na-litere,{letter}/{counter}"
+                tasks.append(scrape(session, url))
+                counter += 140
+            '''for number in range(1,ascii_lowercaseDict[letter]+1):
                 url = f"https://sjp.pwn.pl/sjp/lista/{letter};{number}"
-                tasks.append(scrape(session,url))
-
+                tasks.append(scrape(session,url))'''
         results = await asyncio.gather(*tasks)
         results = [
             x
@@ -236,7 +278,7 @@ async def fetch_definitions(words):
     return results
 
 async def scrape_definition(session,word):
-    url = f"https://sjp.pwn.pl/slowniki/{word}"
+    url = f"https://wordlist.eu/slowo/{word}"
     async with (semaphore2):
         try:
             async with session.get(
@@ -248,7 +290,14 @@ async def scrape_definition(session,word):
                     return None
                 html = await response.text()
                 soup = BeautifulSoup(html,"html.parser")
-                title = soup.find("span", {"class":"tytul"})
+                title = soup.find("dt",{"class" : "h2" })
+                if not title:
+                    app.logger.info("brak definicji")
+                    return "brak definicji"
+                definition = title.find_next("dd").getText(strip=True)
+                app.logger.info(definition)
+                return definition
+                '''title = soup.find("span", {"class":"tytul"})
                 if not title:
                     return "brak definicji"
                 definitionP = title.find_parent("div").find_parent("div").find_next("ol").find_next("li")
@@ -260,7 +309,13 @@ async def scrape_definition(session,word):
                                            ).replace("«","").replace("»"," ")
                 definitionPTextHead,sep,tail = definitionPText.partition("•")
                 app.logger.info(definitionPTextHead)
-                return definitionPTextHead
+                return definitionPTextHead'''
+        except asyncio.TimeoutError as e:
+            app.logger.info(e)
+            return None
+        except aiohttp.ClientError as e:
+            app.logger.info(e)
+            return None
         except Exception as e:
             app.logger.info(e)
 
