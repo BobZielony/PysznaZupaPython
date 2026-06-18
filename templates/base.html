@@ -2,14 +2,17 @@
 <html>
     <head>
         <link rel= "stylesheet" type= "text/css" href= "{{ url_for('static',filename='style.css') }}">
+        <!--<link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">-->
         <title>{% block title %}{% endblock %}</title>
     </head>
     <body>
         <nav>
-            <h1>Pomoc z Krzyzowkami:</h1>
-            <a href="/">Strona główna</a>
-            <a href="{{url_for('haslo')}}">Wpisz hasło</a>
-            <a href="{{url_for('definicja')}}">Wpisz definicje</a>
+            <ul>
+                <li><a href="/">Strona główna</a></li>
+                <li><a href="{{url_for('haslo')}}">Wpisz hasło</a></li>
+                <li><a href="{{url_for('definicja')}}">Wpisz definicje</a></li>
+                <li><a href="{{url_for('krzyzowka')}}">Wygeneruj krzyżówkę</a></li>
+            </ul>
         </nav>
         {% block content %}{% endblock %}
     </body>

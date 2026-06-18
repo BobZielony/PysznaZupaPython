@@ -1,15 +1,31 @@
 {% extends "base.html" %}
 <h1>{% block title %}Podaj Definicje{% endblock %}</h1>
+
 {% block content %}
+
 <h1>Podaj definicje</h1>
-<form action="" method="post" novalidate>
-    {{ form.hidden_tag() }}
-    <p>
-        {{form.crosswordPassword.label}}<br>
-        {{form.crosswordPassword(size=32)}}
-    </p>
-    <p>
-        {{form.submit()}}
-    </p>
+
+<form method="post" class="inputForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="definition">
+        Podaj definicje:
+    </label>
+    <input type="text" name="definition" id="definition">
+    <input type="submit">
 </form>
+
+{% if results %}
+
+<h1>Słowa najbardziej zbliżone do twojej defincji "{{chosenDefinition}}": </h1>
+<ul>
+    {%for result in results %}
+    <li>{{ result["word"] }}
+        <ul>
+            <li>{{ result["definition"] }}, stopień podobieństwa: {{result["similiarity"]}}</li>
+        </ul>
+    </li>
+    {% endfor %}
+</ul>
+
+{% endif %}
 {% endblock %}

@@ -1,17 +1,16 @@
 {% extends "base.html" %}
 <h1>{% block title %}Strona Główna{% endblock %}</h1>
 {% block content %}
-<p class="powitanie">Witaj na stronie ktora pomoze ci z krzyzowkami!</p>
 <h1>Zobaczymy co zwrócił słownik</h1>
- <ul>
- {% for headline in headlines %}
- <li>{{ headline }}
-     <ul>
-         <li>
+<ul>
+    {% for headline in headlines %}
+    <li>{{ headline }}
+        <ul>
+            <li>
              {{ headlines[headline] }}
-         </li>
-     </ul>
- </li>
- {% endfor %}
- </ul>
+            </li>
+        </ul>
+    </li>
+    {% endfor %}
+</ul>
 {% endblock %}

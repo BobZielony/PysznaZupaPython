@@ -1,15 +1,31 @@
 {% extends "base.html" %}
 <h1>{% block title %}Podaj Hasło{% endblock %}</h1>
+
 {% block content %}
+
 <h1>Podaj słowo nieznane litery zastąp .</h1>
-<form action="" method="post" novalidate>
-    {{ form.hidden_tag() }}
-    <p>
-        {{form.crosswordPassword.label}}<br>
-        {{form.crosswordPassword(size=32)}}
-    </p>
-    <p>
-        {{form.submit()}}
-    </p>
+
+<form method="post" class="inputForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="word">
+        Podaj hasło:
+    </label>
+    <input type="text" name="word" id="word">
+    <input type="submit">
 </form>
+
+{% if headlinesToDisplay %}
+
+<h1>Słowa pasujące pasujące do twojej frazy "{{chosenPassword}}": </h1>
+<ul>
+    {%for headline in headlinesToDisplay %}
+    <li>{{ headline }}
+        <ul>
+            <li>{{ headlinesToDisplay[headline] }}</li>
+        </ul>
+    </li>
+    {% endfor %}
+</ul>
+
+{% endif %}
 {% endblock %}
