@@ -121,6 +121,11 @@ input.letter:focus {
     margin-bottom: 5px;
 }
 
+.message{
+    font-size: 200%;
+    color: red;
+}
+
 .actions {
     display: flex;
     justify-content: center;

@@ -24,7 +24,7 @@
 
     {% if crossword %}
     {% if message %}
-    <p class="message" style="color: red;">{{ message }}</p>
+        <p class="message">{{ message }}</p>
     {% endif %}
     <form method="post" id="crossword-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
