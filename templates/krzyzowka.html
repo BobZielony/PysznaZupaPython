@@ -2,108 +2,224 @@
 <h1>{% block title %}Wygenerowana krzyżówka{% endblock %}</h1>
 
 {% block content %}
+
 <div class="container" id="container">
     <h2>Krzyżówka</h2>
 
     {% if error %}
-        <p class="error message">{{ error }}</p>
+    <p class="error message">{{ error }}</p>
     {% endif %}
 
     <form method="post" class="params" id="new-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <label>Szerokość: <input type="number" name="width" value="{{ crossword.width if crossword else 15 }}" min="5" max="50"></label>
-        <label>Wysokość: <input type="number" name="height" value="{{ crossword.height if crossword else 15 }}" min="5" max="50"></label>
-        <label>Maks. słów: <input type="number" name="max_words" value="{{ (crossword.across_clues|length + crossword.down_clues|length) if crossword else 8 }}" min="1" max="100"></label>
+        <label>Szerokość: <input type="number" name="width" value="{{ crossword.width if crossword else 15 }}" min="5"
+                                 max="50"></label>
+        <label>Wysokość: <input type="number" name="height" value="{{ crossword.height if crossword else 15 }}" min="5"
+                                max="50"></label>
+        <label>Maks. słów: <input type="number" name="max_words"
+                                  value="{{ (crossword.across_clues|length + crossword.down_clues|length) if crossword else 8 }}"
+                                  min="1" max="100"></label>
         <button type="submit" name="new_crossword">Nowa krzyżówka</button>
     </form>
 
     {% if crossword %}
-        {% if message %}
-            <p class="message" style="color: red;">{{ message }}</p>
-        {% endif %}
-        <form method="post" id="crossword-form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="crossword_data" value="{{ crossword_json }}">
-            <input type="hidden" name="solution_data" value="{{ solution_json }}">
+    {% if message %}
+    <p class="message" style="color: red;">{{ message }}</p>
+    {% endif %}
+    <form method="post" id="crossword-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="crossword_data" value="{{ crossword_json }}">
+        <input type="hidden" name="solution_data" value="{{ solution_json }}">
 
-            <div class="crossword-wrapper">
-                <table>
-                    {% for r in range(crossword.height) %}
-                        <tr>
-                            {% for c in range(crossword.width) %}
-                                {% if crossword.grid[r][c] is not none %}
-                                    <td>
-                                        {% if crossword.cell_numbers[r][c] %}
-                                            <span class="cell-number">{{ crossword.cell_numbers[r][c] }}</span>
-                                        {% endif %}
-                                        <input class="letter" type="text" maxlength="1"
-                                               name="cell-{{ r }}-{{ c }}"
-                                               autocomplete="off"
-                                               pattern="[A-Za-zĄĆĘŁŃÓŚŹŻąćęłńóśźż]{1}">
-                                    </td>
-                                {% else %}
-                                    <td class="black"></td>
-                                {% endif %}
-                            {% endfor %}
-                        </tr>
+        <div class="crossword-wrapper">
+            <table>
+                {% for r in range(crossword.height) %}
+                <tr>
+                    {% for c in range(crossword.width) %}
+                    {% if crossword.grid[r][c] is not none %}
+                    <td>
+                        {% set num = crossword.cell_numbers[r][c] %}
+                        {% if num %}
+                        <span class="cell-number" title="{{ crossword.tooltips[num] }}">{{ num }}</span>
+                        {% endif %}
+                        <input class="letter" type="text" maxlength="1"
+                               name="cell-{{ r }}-{{ c }}"
+                               value="{{ user_grid[r][c] if user_grid and user_grid[r][c] else '' }}"
+                               autocomplete="off"
+                               data-across-start="{{ '1' if crossword.word_starts[r][c].across else '0' }}"
+                               data-down-start="{{ '1' if crossword.word_starts[r][c].down else '0' }}"
+                               pattern="[A-Za-zĄĆĘŁŃÓŚŹŻąćęłńóśźż]{1}">
+                    </td>
+                    {% else %}
+                    <td class="black"></td>
+                    {% endif %}
                     {% endfor %}
-                </table>
-            </div>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
 
-            <div class="clues">
-                <div>
-                    <h3>Poziomo</h3>
-                    <ul>
-                        {% for num, clue in crossword.across_clues.items()|sort %}
-                            <li><strong>{{ num }}.</strong> {{ clue }}</li>
-                        {% endfor %}
-                    </ul>
-                </div>
-                <div>
-                    <h3>Pionowo</h3>
-                    <ul>
-                        {% for num, clue in crossword.down_clues.items()|sort %}
-                            <li><strong>{{ num }}.</strong> {{ clue }}</li>
-                        {% endfor %}
-                    </ul>
-                </div>
+        <div class="clues">
+            <div>
+                <h3>Poziomo</h3>
+                <ul>
+                    {% for num, clue in crossword.across_clues.items()|sort %}
+                    <li><strong>{{ num }}.</strong> {{ clue }}</li>
+                    {% endfor %}
+                </ul>
             </div>
+            <div>
+                <h3>Pionowo</h3>
+                <ul>
+                    {% for num, clue in crossword.down_clues.items()|sort %}
+                    <li><strong>{{ num }}.</strong> {{ clue }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
 
-            <div class="actions">
-                <button type="submit">Sprawdź</button>
-                <button onclick="printDiv()">Wydrukuj</button>
-            </div>
-        </form>
+        <div class="actions">
+            <button type="submit">Sprawdź</button>
+            <button onclick="printDiv()">Wydrukuj</button>
+        </div>
+    </form>
     {% endif %}
 </div>
 
 <script>
-        // ---------- Przeskakiwanie kursora ----------
-        (function() {
-            const inputs = document.querySelectorAll('input.letter');
-            inputs.forEach((inp, idx) => {
-                inp.addEventListener('input', function() {
-                    if (this.value.length === 1 && idx < inputs.length - 1) {
-                        inputs[idx + 1].focus();
-                    }
-                });
-                inp.addEventListener('keydown', function(e) {
-                    if (e.key === 'Backspace' && this.value === '' && idx > 0) {
-                        inputs[idx - 1].focus();
-                    }
-                });
-            });
-        })();
+    document.addEventListener('DOMContentLoaded', function() {
+       const inputs = document.querySelectorAll('input.letter');
+       if (!inputs.length) return;
 
-    function printDiv() {
-     var printContents = document.getElementById("container").innerHTML;
-     var originalContents = document.body.innerHTML;
+       const inputArray = Array.from(inputs);
+       let direction = 'across';
 
-     document.body.innerHTML = printContents;
+       function findInput(r, c) {
+           return inputArray.find(inp => {
+               const parts = inp.name.split('-');
+               return +parts[1] === r && +parts[2] === c;
+           });
+       }
 
-     window.print();
+       inputArray.forEach((input, idx) => {
+           input.addEventListener('input', function() {
+               if (this.value.length !== 1) return;
 
-     document.body.innerHTML = originalContents;
-}
+               const [_, rStr, cStr] = this.name.split('-');
+               const r = +rStr, c = +cStr;
+               const isDownStart = this.dataset.downStart === '1';
+               const isAcrossStart = this.dataset.acrossStart === '1';
+
+               if (direction === 'across') {
+
+                   const right = findInput(r, c + 1);
+                   if (right) {
+                       right.focus();
+                       return;
+                   }
+
+                   if (isDownStart) {
+                       const down = findInput(r + 1, c);
+                       if (down) {
+                           direction = 'down';
+                           down.focus();
+                           return;
+                       }
+                   }
+
+                   if (idx < inputArray.length - 1) {
+                       direction = 'across';
+                       inputArray[idx + 1].focus();
+                   }
+               } else {
+
+                   const down = findInput(r + 1, c);
+                   if (down) {
+                       down.focus();
+                       return;
+                   }
+
+                   if (isAcrossStart) {
+                       const right = findInput(r, c + 1);
+                       if (right) {
+                           direction = 'across';
+                           right.focus();
+                           return;
+                       }
+                   }
+
+                   if (idx < inputArray.length - 1) {
+                       direction = 'down';
+                       inputArray[idx + 1].focus();
+                   }
+               }
+           });
+
+
+           input.addEventListener('keydown', function(e) {
+               if (e.key !== 'Backspace' || this.value !== '') return;
+
+               const [_, rStr, cStr] = this.name.split('-');
+               const r = +rStr, c = +cStr;
+               const isDownStart = this.dataset.downStart === '1';
+               const isAcrossStart = this.dataset.acrossStart === '1';
+
+               if (direction === 'across') {
+
+                   const left = findInput(r, c - 1);
+                   if (left) {
+                       left.focus();
+                       return;
+                   }
+
+                   if (isDownStart) {
+                       const up = findInput(r - 1, c);
+                       if (up) {
+                           direction = 'down';
+                           up.focus();
+                           return;
+                       }
+                   }
+
+                   if (idx > 0) {
+                       direction = 'across';
+                       inputArray[idx - 1].focus();
+                   }
+               } else { // direction === 'down'
+
+                   const up = findInput(r - 1, c);
+                   if (up) {
+                       up.focus();
+                       return;
+                   }
+
+                   if (isAcrossStart) {
+                       const left = findInput(r, c - 1);
+                       if (left) {
+                           direction = 'across';
+                           left.focus();
+                           return;
+                       }
+                   }
+
+                   if (idx > 0) {
+                       direction = 'down';
+                       inputArray[idx - 1].focus();
+                   }
+               }
+           });
+       });
+   });
+       function printDiv() {
+        var printContents = document.getElementById("container").innerHTML;
+        var originalContents = document.body.innerHTML;
+
+        document.body.innerHTML = printContents;
+
+        window.print();
+
+        document.body.innerHTML = originalContents;
+        }
+
 </script>
 {% endblock %}

@@ -1,16 +1,18 @@
 {% extends "base.html" %}
 <h1>{% block title %}Strona Główna{% endblock %}</h1>
 {% block content %}
+
 <h1>Zobaczymy co zwrócił słownik</h1>
 <ul>
     {% for headline in headlines %}
     <li>{{ headline }}
         <ul>
             <li>
-             {{ headlines[headline] }}
+                {{ headlines[headline] }}
             </li>
         </ul>
     </li>
     {% endfor %}
 </ul>
+
 {% endblock %}
